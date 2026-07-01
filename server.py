@@ -1,145 +1,160 @@
-from flask import Flask, jsonify
-import time
+from flask import Flask, render_template_string
+from flask_socketio import SocketIO, send
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # -------------------------
-# HOME PAGE (modern UI)
+# GAME-STYLE HOME PAGE
 # -------------------------
 @app.route("/")
 def home():
-    return """
-    <html>
-    <head>
-        <title>My Web Server</title>
-        <style>
-            body {
-                margin: 0;
-                font-family: Arial;
-                background: radial-gradient(circle at top, #1e293b, #0f172a);
-                color: white;
-                text-align: center;
-            }
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+<title>NeoChat Lobby</title>
 
-            .container {
-                padding-top: 120px;
-            }
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: radial-gradient(circle at top, #1f2937, #0b0f1a);
+    color: white;
+}
 
-            .card {
-                display: inline-block;
-                padding: 30px;
-                border-radius: 20px;
-                background: rgba(255,255,255,0.06);
-                border: 1px solid rgba(255,255,255,0.1);
-                backdrop-filter: blur(10px);
-            }
+.lobby {
+    text-align: center;
+    padding-top: 80px;
+}
 
-            h1 {
-                font-size: 40px;
-                margin-bottom: 10px;
-            }
+.card {
+    display: inline-block;
+    padding: 30px;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+}
 
-            button {
-                margin-top: 15px;
-                padding: 10px 20px;
-                border-radius: 10px;
-                border: none;
-                cursor: pointer;
-                background: #3b82f6;
-                color: white;
-            }
+button {
+    padding: 12px 20px;
+    margin-top: 20px;
+    border: none;
+    border-radius: 10px;
+    background: #6366f1;
+    color: white;
+    cursor: pointer;
+}
 
-            button:hover {
-                background: #2563eb;
-            }
+button:hover {
+    background: #4f46e5;
+}
+</style>
 
-            a {
-                color: #60a5fa;
-                display: block;
-                margin-top: 10px;
-            }
-        </style>
-    </head>
+</head>
 
-    <body>
-        <div class="container">
-            <div class="card">
-                <h1>🚀 Advanced Server</h1>
-                <p>Your Render web server is running</p>
-
-                <button onclick="alert('Server is alive 🔥')">Test Button</button>
-
-                <a href="/dashboard">Go to Dashboard →</a>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+<body>
+<div class="lobby">
+    <div class="card">
+        <h1>🎮 NeoChat Lobby</h1>
+        <p>Join the live chat server</p>
+        <button onclick="window.location.href='/chat'">Enter Chat</button>
+    </div>
+</div>
+</body>
+</html>
+""")
 
 # -------------------------
-# DASHBOARD PAGE
+# CHAT PAGE
 # -------------------------
-@app.route("/dashboard")
-def dashboard():
-    return """
-    <html>
-    <head>
-        <title>Dashboard</title>
-        <style>
-            body {
-                background: #0f172a;
-                color: white;
-                font-family: Arial;
-                text-align: center;
-                padding-top: 80px;
-            }
+@app.route("/chat")
+def chat():
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+<title>Chat Room</title>
 
-            .box {
-                display: inline-block;
-                padding: 25px;
-                border-radius: 15px;
-                background: rgba(255,255,255,0.05);
-                border: 1px solid rgba(255,255,255,0.1);
-            }
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #0b0f1a;
+    color: white;
+}
 
-            #time {
-                font-size: 28px;
-                margin-top: 10px;
-            }
-        </style>
-    </head>
+#chat {
+    height: 80vh;
+    overflow-y: scroll;
+    padding: 20px;
+}
 
-    <body>
-        <div class="box">
-            <h1>📊 Dashboard</h1>
-            <p>Live server info</p>
+input {
+    width: 80%;
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+}
 
-            <div id="time">Loading...</div>
+button {
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    background: #4f46e5;
+    color: white;
+    cursor: pointer;
+}
 
-            <script>
-                setInterval(() => {
-                    document.getElementById("time").innerHTML =
-                        "⏱ " + new Date().toLocaleTimeString();
-                }, 1000);
-            </script>
-        </div>
-    </body>
-    </html>
-    """
+.msg {
+    padding: 8px;
+    margin: 5px 0;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div id="chat"></div>
+
+<input id="msg" placeholder="Type message..." />
+<button onclick="sendMsg()">Send</button>
+
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script>
+var socket = io();
+
+function sendMsg() {
+    var input = document.getElementById("msg");
+    socket.send(input.value);
+    input.value = "";
+}
+
+socket.on("message", function(msg) {
+    var div = document.createElement("div");
+    div.className = "msg";
+    div.innerHTML = msg;
+    document.getElementById("chat").appendChild(div);
+});
+</script>
+
+</body>
+</html>
+""")
 
 # -------------------------
-# API ENDPOINT (backend)
+# CHAT BACKEND
 # -------------------------
-@app.route("/api/status")
-def status():
-    return jsonify({
-        "status": "online",
-        "time": time.time(),
-        "message": "Server is working"
-    })
+@socketio.on('message')
+def handle_message(msg):
+    send(msg, broadcast=True)
 
 # -------------------------
 # RUN SERVER
 # -------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    socketio.run(app, host="0.0.0.0", port=10000)
